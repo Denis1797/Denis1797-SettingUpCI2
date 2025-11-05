@@ -1,0 +1,21 @@
+image: Visual Studio 2019
+platform: x64
+build: off
+
+environment:
+  JAVA_VERSION: '11'
+
+install:
+  - choco install openjdk11
+
+init:
+  - java -version
+
+before_script:
+  - start /B java -jar ./artifacts/app-mbank.jar
+
+build_script:
+  - gradlew test --info
+
+artifacts:
+  - path: build/test-results/**/*.xml
