@@ -2,23 +2,17 @@ image: Visual Studio 2022
 
 environment:
   matrix:
-    - JAVA_HOME: "C:/Program Files/Eclipse Adoptium/jdk-11.0.28.6-hotspot"
+    - JAVA_HOME: "C:\\Program Files\\AdoptOpenJDK\\jdk-11.0.18.10-hotspot"
 
 install:
+  - set PATH=%JAVA_HOME%\bin;%PATH%
   - java -version
-  - chmod +x ./gradlew
+  - chmod +x gradlew.bat
 
 build_script:
-  # Сборка проекта
-  - ./gradlew build --info
-
-  # Создаём папку artifacts
-  - if not exist artifacts mkdir artifacts
-
-  # Копируем jar в папку artifacts с нужным именем
+  - gradlew.bat build --info
+  - if not exist src\artifacts mkdir src\artifacts
   - copy build\libs\*.jar src\artifacts\app-mbank.jar
-
-  # Запускаем jar (если нужно)
   - java -jar src\artifacts\app-mbank.jar
 
 branches:
