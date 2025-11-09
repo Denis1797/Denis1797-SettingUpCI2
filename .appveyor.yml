@@ -1,21 +1,19 @@
-image: Visual Studio 2019
-platform: x64
-build: off
+image: Visual Studio 2022
 
 environment:
-  JAVA_VERSION: '11'
+  matrix:
+    - JDK_VERSION: 11
 
 install:
-  - choco install openjdk11
-
-init:
   - java -version
+  - java -jar ./artifacts/app-mbank.jar &
+  - chmod +x ./gradlew
 
-before_script:
-  - start /B java -jar ./artifacts/app-mbank.jar
+build: off
 
 build_script:
-  - gradlew test --info
+  - ./gradlew test --info
 
-artifacts:
-  - path: build/test-results/**/*.xml
+branches:
+  only:
+    - main
