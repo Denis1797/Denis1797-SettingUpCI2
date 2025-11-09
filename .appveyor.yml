@@ -5,8 +5,8 @@ environment:
     - JDK_VERSION: 11
 
 install:
-  - java -jar ./src/artifacts/app-mbank.jar &
-  - chmod +x gradlew.bat
+  - java -version
+  - chmod +x gradlew
 
 build_script:
   # Сборка проекта
