@@ -2,27 +2,21 @@ image: Visual Studio 2022
 
 environment:
   matrix:
-    - JDK_VERSION: 11
+    - JDK_VERSION: 8
 
 install:
   - java -version
   - gradlew.bat --version
 
 build_script:
-  # Сборка проекта
   - gradlew.bat build --info
-
-  # Создать папку для артефакта
   - if not exist src\artifacts mkdir src\artifacts
-
-  # Копировать jar в src/artifacts
   - copy build\libs\*.jar src\artifacts\app-mbank.jar
-
-  # Запуск jar (опционально)
   - java -jar src\artifacts\app-mbank.jar
 
 branches:
   only:
     - main
+
 
 
