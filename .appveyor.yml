@@ -1,20 +1,35 @@
 image: Visual Studio 2022
 
-environment:
-  matrix:
-    - JDK_VERSION: 11
-
+# Установка JDK 11 вручную
 install:
+  # Скачать JDK 11
+  - ps: Invoke-WebRequest -Uri https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.28.6/OpenJDK11U-jdk_x64_windows_hotspot_11.0.28_6.zip -OutFile jdk11.zip
+  # Распаковать
+  - ps: Expand-Archive jdk11.zip -DestinationPath $env:APPVEYOR_BUILD_FOLDER\jdk11
+  # Установить JAVA_HOME
+  - setx JAVA_HOME "$env:APPVEYOR_BUILD_FOLDER\jdk11\jdk-11.0.28_6-hotspot"
+  - set PATH=%JAVA_HOME%\bin;%PATH%
   - java -version
+
+  # Сделать gradlew исполняемым
   - chmod +x gradlew.bat
 
+# Сборка проекта
 build_script:
   - gradlew.bat build --info
+
+  # Создать папку для артефакта
   - if not exist src\artifacts mkdir src\artifacts
+
+  # Копировать jar в src/artifacts
   - copy build\libs\*.jar src\artifacts\app-mbank.jar
+
+  # Запуск jar (опционально)
   - java -jar src\artifacts\app-mbank.jar
 
+# Проверка веток
 branches:
   only:
     - main
+
 
