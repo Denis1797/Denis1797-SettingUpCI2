@@ -9,15 +9,27 @@ install:
   - gradlew.bat --version
 
 build_script:
+  # Собираем jar
   - gradlew.bat build --info
   - if not exist src\artifacts mkdir src\artifacts
   - copy build\libs\*.jar src\artifacts\app-mbank.jar
+
+  # Запускаем сервер в фоне
   - start /b java -jar src\artifacts\app-mbank.jar
-  - timeout /t 10
+
+  # Ждем пока сервер на 9999 порту станет доступен
+  - powershell -Command "
+    $maxWait=30; $i=0;
+    while (-not (Test-NetConnection -ComputerName localhost -Port 9999).TcpTestSucceeded -and $i -lt $maxWait) {
+    Start-Sleep -Seconds 1
+    $i++
+    }
+    if ($i -eq $maxWait) { throw 'Server did not start in time' }
+    "
+
+  # Запускаем тесты
   - gradlew.bat test
 
 branches:
   only:
     - main
-
-
