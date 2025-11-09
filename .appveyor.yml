@@ -1,4 +1,3 @@
-# appveyor.yml — запускает jar, ждёт порт 9999, запускает тесты и останавливает сервер
 image: Visual Studio 2022
 
 environment:
@@ -10,73 +9,12 @@ install:
   - gradlew.bat --version
 
 build_script:
-
-  # 1) Сборка проекта (создаст JAR в build\libs)
-  - gradlew.bat clean build --info
-
-  # 2) Копируем JAR в src\artifacts (как требует задание)
+  - gradlew.bat build --info
   - if not exist src\artifacts mkdir src\artifacts
   - copy build\libs\*.jar src\artifacts\app-mbank.jar
-
-  # 3) Запускаем JAR в фоне и сохраняем PID в файл (PowerShell)
-  - ps: |
-      $jar = Join-Path $env:APPVEYOR_BUILD_FOLDER "src\artifacts\app-mbank.jar"
-      if (-not (Test-Path $jar)) {
-        Write-Host "ERROR: jar not found at $jar"
-        exit 1
-      }
-      Write-Host "Starting server from $jar"
-      # Start-Process с PassThru даёт объект процесса с Id
-      $p = Start-Process -FilePath "java" -ArgumentList "-jar", "`"$jar`"" -PassThru
-      $pid = $p.Id
-      Write-Host "Server started, pid = $pid"
-      # сохраним pid в файл, чтобы потом остановить
-      Set-Content -Path server_pid.txt -Value $pid
-
-  # 4) Ждём появления прослушиваемого порта 9999 (максимум 40 сек)
-  - ps: |
-      $port = 9999
-      $maxWait = 40
-      $i = 0
-      Write-Host "Waiting for server to listen on port $port (timeout ${maxWait}s)..."
-      while ($i -lt $maxWait) {
-        $res = Test-NetConnection -ComputerName 'localhost' -Port $port -WarningAction SilentlyContinue
-        if ($res.TcpTestSucceeded) {
-          Write-Host "Port $port is open"
-          break
-        }
-        Start-Sleep -Seconds 1
-        $i++
-      }
-      if ($i -ge $maxWait) {
-        Write-Host "ERROR: server did not start within ${maxWait} seconds"
-        # попытаемся вывести последние 200 строк лога (если есть), но не обязательный шаг
-        if (Test-Path "application.log") { Get-Content application.log -Tail 200 | Write-Host }
-        exit 1
-      }
-
-  # 5) Запускаем тесты (они будут обращаться к localhost:9999)
-  - gradlew.bat test --info
-
-  # 6) Остановим сервер (в конце сборки всегда пытаемся завершить)
-  - ps: |
-      if (Test-Path server_pid.txt) {
-        try {
-          $pid = Get-Content server_pid.txt
-          Write-Host "Stopping server pid $pid"
-          Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-          Remove-Item server_pid.txt -ErrorAction SilentlyContinue
-          Write-Host "Server stopped"
-        } catch {
-          Write-Host "Could not stop server process: $_"
-        }
-      } else {
-        Write-Host "No server_pid.txt found — nothing to stop"
-      }
-
-artifacts:
-  - path: src\artifacts\app-mbank.jar
-    name: app-mbank
+  - java -jar src\artifacts\app-mbank.jar &
+  - timeout /t 10
+  - gradlew.bat test
 
 branches:
   only:
