@@ -1,16 +1,87 @@
-version: '{build}'
 image: Visual Studio 2022
 
-environment:
-  JAVA_HOME: C:\Program Files\Microsoft\jdk-17.0.11.9-hotspot
+install:
+  # Показываем дефолтную Java (будет 1.8)
+  - where java
+  - java -version
 
-cache:
-  - C:\Users\appveyor\.gradle\caches
+  # Ставим Java 11
+  - choco install temurin11 -y
+
+  # Ищем путь к java.exe из Java 11
+  - ps: |
+      $j11 = Get-ChildItem "C:\Program Files\Eclipse Adoptium\" -Recurse -Filter java.exe |
+             Where-Object { $_.FullName -like "*\bin\java.exe" } | Select-Object -First 1
+      if (!$j11) { Write-Host "ERROR: Java 11 not found"; exit 1 }
+      "JAVA11=$($j11.FullName)" | Set-Content java11_path.txt -Encoding ASCII
+      Write-Host "Java 11 found: $($j11.FullName)"
 
 build_script:
-  - gradlew.bat --no-daemon clean build
+  # 1) Собираем проект
+  - gradlew.bat clean build --info
 
-test: off
+  # 2) Создаём artifacts и копируем JAR
+  - if not exist artifacts mkdir artifacts
+  - copy build\libs\*.jar artifacts\app-mbank.jar
+
+  # 3) Запускаем SUT под Java 11
+  - ps: |
+      $java11 = (Get-Content java11_path.txt).Split("=")[1]
+      $jar = Join-Path $env:APPVEYOR_BUILD_FOLDER "artifacts\app-mbank.jar"
+      $stdout = "sut_stdout.log"
+      $stderr = "sut_stderr.log"
+
+      if (-not (Test-Path $jar)) {
+        Write-Host "ERROR: JAR not found: $jar"
+        exit 1
+      }
+
+      Write-Host "Starting SUT on Java 11..."
+      $proc = Start-Process -FilePath $java11 -ArgumentList @("-jar", $jar) `
+               -RedirectStandardOutput $stdout -RedirectStandardError $stderr `
+               -NoNewWindow -PassThru
+
+      $pid = $proc.Id
+      Write-Host "SUT started, PID = $pid"
+      "PID=$pid" | Set-Content server_pid.txt
+
+  # 4) Ждём поднимется ли порт 9999 (до 60 секунд)
+  - ps: |
+      $port = 9999
+      for ($i=0; $i -lt 60; $i++) {
+        $ok = (Test-NetConnection -ComputerName "localhost" -Port $port `
+              -WarningAction SilentlyContinue).TcpTestSucceeded
+        if ($ok) {
+          Write-Host "SUT is UP ✅"
+          break
+        }
+        Start-Sleep -Seconds 1
+      }
+
+      if (-not $ok) {
+        Write-Host "❌ ERROR: SUT did not start"
+        Write-Host "--- STDERR ---"
+        Get-Content sut_stderr.log -Tail 200
+        Write-Host "--- STDOUT ---"
+        Get-Content sut_stdout.log -Tail 200
+        exit 1
+      }
+
+  # 5) Запускаем тесты
+  - gradlew.bat test --info
+
+  # 6) Останавливаем сервер
+  - ps: |
+      if (Test-Path server_pid.txt) {
+        $pid = (Get-Content server_pid.txt).Replace("PID=","")
+        Write-Host "Stopping SUT pid=$pid"
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+      }
+
 artifacts:
-  - path: build\libs\*.jar
-    name: app
+  - path: artifacts\app-mbank.jar
+    name: app-mbank
+
+branches:
+  only:
+    - main
